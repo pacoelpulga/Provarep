@@ -1,40 +1,95 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from datetime import datetime
-import random
+import plotly.express as px
 
 st.set_page_config(page_title="Gantt Pro", layout="wide")
 
-st.title("📊 Gantt Pro Multi-Progetto")
+st.title("📊 Gantt Multi-Progetto (Interattivo)")
 
 # ===== STATE =====
 if "tasks" not in st.session_state:
     st.session_state.tasks = []
 
-# ===== SIDEBAR =====
-st.sidebar.header("➕ Nuovo Task")
+# ===== INPUT (MOBILE FRIENDLY) =====
+st.subheader("➕ Nuovo Task")
 
-project = st.sidebar.text_input("Progetto")
-name = st.sidebar.text_input("Nome Task")
-category = st.sidebar.selectbox("Categoria", ["Lavoro", "Studio", "Altro"])
+col1, col2 = st.columns(2)
 
-start = st.sidebar.datetime_input("Inizio")
-end = st.sidebar.datetime_input("Fine")
+with col1:
+    project = st.text_input("Progetto")
+    name = st.text_input("Nome Task")
 
-# lista task esistenti per dipendenze
-existing_tasks = [t["Task"] for t in st.session_state.tasks]
-dependency = st.sidebar.selectbox("Dipende da", ["Nessuno"] + existing_tasks)
+with col2:
+    start = st.date_input("Inizio")
+    end = st.date_input("Fine")
 
-if st.sidebar.button("Aggiungi"):
-    if not project.strip():
-        st.sidebar.error("Inserisci progetto")
-    elif not name.strip():
-        st.sidebar.error("Inserisci nome task")
+if st.button("Aggiungi Task"):
+    if not project or not name:
+        st.error("Compila tutti i campi")
     elif end < start:
-        st.sidebar.error("Date non valide")
+        st.error("Date non valide")
     else:
         st.session_state.tasks.append({
+            "Progetto": project,
+            "Task": name,
+            "Start": pd.to_datetime(start),
+            "End": pd.to_datetime(end)
+        })
+        st.success("Aggiunto!")
+
+# ===== DATA =====
+if st.session_state.tasks:
+
+    df = pd.DataFrame(st.session_state.tasks)
+
+    st.subheader("📋 Task")
+    df = st.data_editor(df, use_container_width=True)
+    st.session_state.tasks = df.to_dict("records")
+
+    # ===== FILTRO PROGETTI =====
+    projects = df["Progetto"].unique()
+    selected = st.multiselect("🎯 Progetti", projects, default=projects)
+
+    df = df[df["Progetto"].isin(selected)]
+
+    if len(df) > 0:
+
+        # ===== GANTT INTERATTIVO =====
+        st.subheader("📊 Diagramma di Gantt")
+
+        fig = px.timeline(
+            df,
+            x_start="Start",
+            x_end="End",
+            y="Task",
+            color="Progetto",
+            hover_data=["Progetto"]
+        )
+
+        # solo data (no ora)
+        fig.update_xaxes(
+            tickformat="%d/%m/%Y",
+            title="Data"
+        )
+
+        # ordine corretto (dall’alto al basso)
+        fig.update_yaxes(autorange="reversed")
+
+        # migliorie UX
+        fig.update_layout(
+            height=max(400, len(df) * 40),
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.info("💡 Suggerimento: usa zoom e trascinamento per navigare nella timeline")
+
+    else:
+        st.warning("Nessun task nei progetti selezionati")
+
+else:
+    st.info("Nessun task inserito")        st.session_state.tasks.append({
             "Progetto": project,
             "Task": name,
             "Categoria": category,
