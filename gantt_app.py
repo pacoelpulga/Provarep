@@ -101,7 +101,7 @@ if st.session_state.tasks:
         st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("Nessun task inserito")        })
+    st.info("Nessun task inserito")        
         st.success("Task aggiunto!")
 
 # ===== DATA =====
