@@ -1,14 +1,24 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import os
 
 st.set_page_config(page_title="Gantt Pro", layout="wide")
 
 st.title("📊 Gantt Multi-Progetto")
 
-# ===== SESSION STATE =====
+FILE_PATH = "tasks.csv"
+
+# ===== LOAD DATA =====
 if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+    if os.path.exists(FILE_PATH):
+        st.session_state.tasks = pd.read_csv(FILE_PATH).to_dict("records")
+    else:
+        st.session_state.tasks = []
+
+# ===== SAVE FUNCTION =====
+def save_tasks():
+    pd.DataFrame(st.session_state.tasks).to_csv(FILE_PATH, index=False)
 
 # ===== INPUT =====
 st.subheader("➕ Nuovo Task")
@@ -35,6 +45,7 @@ if st.button("Aggiungi Task"):
             "Start": str(start),
             "End": str(end)
         })
+        save_tasks()
         st.success("Task aggiunto!")
 
 # ===== DATA =====
@@ -45,22 +56,31 @@ if st.session_state.tasks:
     df["Start"] = pd.to_datetime(df["Start"])
     df["End"] = pd.to_datetime(df["End"])
 
-    # solo data (no ora)
-    df["Start"] = df["Start"].dt.date
-    df["End"] = df["End"].dt.date
+    # 👉 SOLO giorno/mese per visualizzazione
+    df_display = df.copy()
+    df_display["Start"] = df_display["Start"].dt.strftime("%d/%m")
+    df_display["End"] = df_display["End"].dt.strftime("%d/%m")
 
     # ===== EDIT =====
     st.subheader("📋 Modifica Task")
 
     edited_df = st.data_editor(
-        df,
+        df_display,
         use_container_width=True,
         num_rows="dynamic"
     )
 
-    st.session_state.tasks = edited_df.to_dict("records")
+    # 👉 riconversione date dopo editing
+    try:
+        edited_df["Start"] = pd.to_datetime(edited_df["Start"], format="%d/%m")
+        edited_df["End"] = pd.to_datetime(edited_df["End"], format="%d/%m")
+    except:
+        pass
 
-    # reload
+    st.session_state.tasks = edited_df.to_dict("records")
+    save_tasks()
+
+    # reload corretto
     df = pd.DataFrame(st.session_state.tasks)
     df["Start"] = pd.to_datetime(df["Start"])
     df["End"] = pd.to_datetime(df["End"])
