@@ -16,7 +16,7 @@ st.subheader("➕ Nuovo Task")
 col1, col2 = st.columns(2)
 
 with col1:
-    project = st.text_input("Progetto")        fig.update_xaxes(tickformat="%d/%m/%Y")
+    project = st.text_input("Progetto")
         fig.update_yaxes(autorange="reversed")
 
         st.plotly_chart(fig, use_container_width=True)
