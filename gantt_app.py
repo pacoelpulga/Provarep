@@ -6,6 +6,7 @@ st.set_page_config(page_title="Gantt Pro", layout="wide")
 
 st.title("📊 Gantt Multi-Progetto")
 
+# ===== SESSION STATE =====
 if "tasks" not in st.session_state:
     st.session_state.tasks = []
 
@@ -35,6 +36,46 @@ if st.button("Aggiungi Task"):
             "End": str(end)
         })
         st.success("Task aggiunto!")
+
+# ===== DATA =====
+if st.session_state.tasks:
+
+    df = pd.DataFrame(st.session_state.tasks)
+
+    df["Start"] = pd.to_datetime(df["Start"])
+    df["End"] = pd.to_datetime(df["End"])
+
+    # 👉 SOLO DATA (no orario) per editing
+    df["Start"] = df["Start"].dt.date
+    df["End"] = df["End"].dt.date
+
+    # ===== EDIT =====
+    st.subheader("📋 Modifica Task")
+
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="dynamic"
+    )
+
+    # salva modifiche
+    st.session_state.tasks = edited_df.to_dict("records")
+
+    # reload + riconversione datetime
+    df = pd.DataFrame(st.session_state.tasks)
+    df["Start"] = pd.to_datetime(df["Start"])
+    df["End"] = pd.to_datetime(df["End"])
+
+    # ===== FILTRO =====
+    projects = df["Progetto"].unique()
+    selected = st.multiselect("Seleziona Progetti", projects, default=projects)
+
+    df = df[df["Progetto"].isin(selected)]
+
+    # ===== GANTT =====
+    if len(df) > 0:
+
+        st.subheader("📊 Diagram        st.success("Task aggiunto!")
 
 # ===== DATA =====
 if st.session_state.tasks:
