@@ -57,6 +57,54 @@ if st.session_state.tasks:
 
     df = pd.DataFrame(st.session_state.tasks)
 
+    # colonne mancanti
+    for col in ["Descrizione", "Colore"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    # conversione date sicura
+    df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
+    df["End"] = pd.to_datetime(df["End"], errors="coerce")
+    df = df.dropna(subset=["Start", "End"])
+
+    # ===== LABEL MULTILINEA =====
+    df["Label"] = df["Progetto"] + " / " + df["Task"] + "<br>" + df["Descrizione"]
+
+    # ===== TABELLA EDIT =====
+    st.subheader("📋 Modifica Task")
+    st.info("Modifica i task e premi 'Salva modifiche'")
+
+    df_display = df.copy()
+    df_display["Start"] = df_display["Start"].dt.strftime("%d/%m")
+    df_display["End"] = df_display["End"].dt.strftime("%d/%m")
+
+    df_display = df_display.drop(columns=["Label"])
+
+    edited_df = st.data_editor(
+        df_display,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="editor"
+    )
+
+    # ===== SALVATAGGIO CONTROLLATO =====
+    if st.button("💾 Salva modifiche"):
+        try:
+            edited_df["Start"] = pd.to_datetime(edited_df["Start"], format="%d/%m")
+            edited_df["End"] = pd.to_datetime(edited_df["End"], format="%d/%m")
+
+            st.session_state.tasks = edited_df.to_dict("records")
+            save_tasks()
+
+            st.success("Modifiche salvate!")
+            st.rerun()
+
+        except:
+            st.error("Errore nelle date (usa formato gg/mm)")
+
+    # ===== RELOAD DATI =====
+    df = pd.DataFrame(st.session_state.tasks)
+
     for col in ["Descrizione", "Colore"]:
         if col not in df.columns:
             df[col] = ""
@@ -65,54 +113,17 @@ if st.session_state.tasks:
     df["End"] = pd.to_datetime(df["End"], errors="coerce")
     df = df.dropna(subset=["Start", "End"])
 
-    # ===== LABEL MULTILINEA =====
-    df["Label"] = (
-        df["Progetto"] + " / " + df["Task"] + "<br>" + df["Descrizione"]
-    )
-
-    # ===== TABELLA =====
-    st.subheader("📋 Modifica Task")
-
-    df_display = df.copy()
-    df_display["Start"] = df_display["Start"].dt.strftime("%d/%m")
-    df_display["End"] = df_display["End"].dt.strftime("%d/%m")
-
-    # 👉 togli Label dalla tabella
-    df_display = df_display.drop(columns=["Label"])
-
-    edited_df = st.data_editor(
-        df_display,
-        use_container_width=True,
-        num_rows="dynamic"
-    )
-
-    # riconversione date
-    try:
-        edited_df["Start"] = pd.to_datetime(edited_df["Start"], format="%d/%m")
-        edited_df["End"] = pd.to_datetime(edited_df["End"], format="%d/%m")
-    except:
-        pass
-
-    st.session_state.tasks = edited_df.to_dict("records")
-    save_tasks()
-
-    # reload
-    df = pd.DataFrame(st.session_state.tasks)
-    df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
-    df["End"] = pd.to_datetime(df["End"], errors="coerce")
-    df = df.dropna(subset=["Start", "End"])
-
-    df["Label"] = (
-        df["Progetto"] + " / " + df["Task"] + "<br>" + df["Descrizione"]
-    )
+    df["Label"] = df["Progetto"] + " / " + df["Task"] + "<br>" + df["Descrizione"]
 
     # ===== GANTT =====
     if len(df) > 0:
 
         st.subheader("📊 Diagramma di Gantt")
 
+        # fine inclusiva
         df["End"] = df["End"] + pd.Timedelta(days=1)
 
+        # colori stabili
         color_map = {
             row["Label"]: row["Colore"] if row["Colore"] else "#1f77b4"
             for _, row in df.iterrows()
@@ -128,7 +139,7 @@ if st.session_state.tasks:
             hover_data=["Task", "Descrizione"]
         )
 
-        # 👉 rimuove legenda
+        # rimuove legenda
         fig.update_layout(showlegend=False)
 
         fig.update_yaxes(
@@ -151,7 +162,7 @@ if st.session_state.tasks:
             line_color="red"
         )
 
-        # domeniche
+        # domeniche ottimizzate
         sundays = pd.date_range(
             start=df["Start"].min(),
             end=df["End"].max(),
