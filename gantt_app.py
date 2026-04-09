@@ -88,19 +88,26 @@ if st.session_state.tasks:
     )
 
     # ===== SALVATAGGIO CONTROLLATO =====
-    if st.button("💾 Salva modifiche"):
-        try:
-            edited_df["Start"] = pd.to_datetime(edited_df["Start"], format="%d/%m")
-            edited_df["End"] = pd.to_datetime(edited_df["End"], format="%d/%m")
+if st.button("💾 Salva modifiche"):
+    try:
+        current_year = datetime.now().year
 
-            st.session_state.tasks = edited_df.to_dict("records")
-            save_tasks()
+        # aggiunge anno automaticamente
+        edited_df["Start"] = edited_df["Start"].apply(
+            lambda x: pd.to_datetime(f"{x}/{current_year}", format="%d/%m/%Y")
+        )
+        edited_df["End"] = edited_df["End"].apply(
+            lambda x: pd.to_datetime(f"{x}/{current_year}", format="%d/%m/%Y")
+        )
 
-            st.success("Modifiche salvate!")
-            st.rerun()
+        st.session_state.tasks = edited_df.to_dict("records")
+        save_tasks()
 
-        except:
-            st.error("Errore nelle date (usa formato gg/mm)")
+        st.success("Modifiche salvate!")
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Errore nelle date: {e}")
 
     # ===== RELOAD DATI =====
     df = pd.DataFrame(st.session_state.tasks)
