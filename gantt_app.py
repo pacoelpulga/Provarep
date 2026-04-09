@@ -57,44 +57,62 @@ if st.session_state.tasks:
 
     df = pd.DataFrame(st.session_state.tasks)
 
-    # colonne mancanti
     for col in ["Descrizione", "Colore"]:
         if col not in df.columns:
             df[col] = ""
 
-    # conversione sicura
     df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
     df["End"] = pd.to_datetime(df["End"], errors="coerce")
-
     df = df.dropna(subset=["Start", "End"])
 
-    # label asse Y
-    df["Label"] = df["Task"] + " | " + df["Descrizione"]
+    # ===== LABEL MULTILINEA =====
+    df["Label"] = (
+        df["Progetto"] + " / " + df["Task"] + "<br>" + df["Descrizione"]
+    )
 
-    # ===== EDITOR (semplice e stabile) =====
+    # ===== TABELLA =====
     st.subheader("📋 Modifica Task")
 
-    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+    df_display = df.copy()
+    df_display["Start"] = df_display["Start"].dt.strftime("%d/%m")
+    df_display["End"] = df_display["End"].dt.strftime("%d/%m")
+
+    # 👉 togli Label dalla tabella
+    df_display = df_display.drop(columns=["Label"])
+
+    edited_df = st.data_editor(
+        df_display,
+        use_container_width=True,
+        num_rows="dynamic"
+    )
+
+    # riconversione date
+    try:
+        edited_df["Start"] = pd.to_datetime(edited_df["Start"], format="%d/%m")
+        edited_df["End"] = pd.to_datetime(edited_df["End"], format="%d/%m")
+    except:
+        pass
 
     st.session_state.tasks = edited_df.to_dict("records")
     save_tasks()
 
+    # reload
     df = pd.DataFrame(st.session_state.tasks)
     df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
     df["End"] = pd.to_datetime(df["End"], errors="coerce")
     df = df.dropna(subset=["Start", "End"])
 
-    df["Label"] = df["Task"] + " | " + df["Descrizione"]
+    df["Label"] = (
+        df["Progetto"] + " / " + df["Task"] + "<br>" + df["Descrizione"]
+    )
 
     # ===== GANTT =====
     if len(df) > 0:
 
         st.subheader("📊 Diagramma di Gantt")
 
-        # fine inclusiva
         df["End"] = df["End"] + pd.Timedelta(days=1)
 
-        # colori sicuri
         color_map = {
             row["Label"]: row["Colore"] if row["Colore"] else "#1f77b4"
             for _, row in df.iterrows()
@@ -110,16 +128,22 @@ if st.session_state.tasks:
             hover_data=["Task", "Descrizione"]
         )
 
-        fig.update_yaxes(autorange="reversed", title=None)
+        # 👉 rimuove legenda
+        fig.update_layout(showlegend=False)
 
-        # asse tempo stabile
+        fig.update_yaxes(
+            autorange="reversed",
+            title=None,
+            automargin=True
+        )
+
         fig.update_xaxes(
             tickformat="%d/%m",
             dtick="D1",
             showgrid=True
         )
 
-        # ===== LINEA OGGI =====
+        # linea oggi
         today = datetime.now()
         fig.add_vline(
             x=today,
@@ -127,11 +151,12 @@ if st.session_state.tasks:
             line_color="red"
         )
 
-        # ===== DOMENICHE (ottimizzato) =====
-        start_range = df["Start"].min().date()
-        end_range = df["End"].max().date()
-
-        sundays = pd.date_range(start=start_range, end=end_range, freq="W-SUN")
+        # domeniche
+        sundays = pd.date_range(
+            start=df["Start"].min(),
+            end=df["End"].max(),
+            freq="W-SUN"
+        )
 
         for d in sundays:
             fig.add_vrect(
