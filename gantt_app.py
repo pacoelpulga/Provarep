@@ -57,37 +57,32 @@ if st.session_state.tasks:
 
     df = pd.DataFrame(st.session_state.tasks)
 
+    # colonne mancanti
     for col in ["Descrizione", "Colore"]:
         if col not in df.columns:
             df[col] = ""
 
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["End"] = pd.to_datetime(df["End"])
+    # conversione sicura
+    df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
+    df["End"] = pd.to_datetime(df["End"], errors="coerce")
 
-    # ===== LABEL Y "TABELLARE" =====
+    df = df.dropna(subset=["Start", "End"])
+
+    # label asse Y
     df["Label"] = df["Task"] + " | " + df["Descrizione"]
 
-    # ===== EDIT =====
+    # ===== EDITOR (semplice e stabile) =====
     st.subheader("📋 Modifica Task")
 
-    df_display = df.copy()
-    df_display["Start"] = df_display["Start"].dt.strftime("%d/%m")
-    df_display["End"] = df_display["End"].dt.strftime("%d/%m")
-
-    edited_df = st.data_editor(df_display, use_container_width=True, num_rows="dynamic")
-
-    try:
-        edited_df["Start"] = pd.to_datetime(edited_df["Start"], format="%d/%m")
-        edited_df["End"] = pd.to_datetime(edited_df["End"], format="%d/%m")
-    except:
-        pass
+    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
 
     st.session_state.tasks = edited_df.to_dict("records")
     save_tasks()
 
     df = pd.DataFrame(st.session_state.tasks)
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["End"] = pd.to_datetime(df["End"])
+    df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
+    df["End"] = pd.to_datetime(df["End"], errors="coerce")
+    df = df.dropna(subset=["Start", "End"])
 
     df["Label"] = df["Task"] + " | " + df["Descrizione"]
 
@@ -96,21 +91,28 @@ if st.session_state.tasks:
 
         st.subheader("📊 Diagramma di Gantt")
 
+        # fine inclusiva
         df["End"] = df["End"] + pd.Timedelta(days=1)
+
+        # colori sicuri
+        color_map = {
+            row["Label"]: row["Colore"] if row["Colore"] else "#1f77b4"
+            for _, row in df.iterrows()
+        }
 
         fig = px.timeline(
             df,
             x_start="Start",
             x_end="End",
             y="Label",
-            color="Colore",
-            color_discrete_map="identity",
+            color="Label",
+            color_discrete_map=color_map,
             hover_data=["Task", "Descrizione"]
         )
 
         fig.update_yaxes(autorange="reversed", title=None)
 
-        # ===== ASSE TEMPO =====
+        # asse tempo stabile
         fig.update_xaxes(
             tickformat="%d/%m",
             dtick="D1",
@@ -118,29 +120,28 @@ if st.session_state.tasks:
         )
 
         # ===== LINEA OGGI =====
-        today = datetime.now().date()
+        today = datetime.now()
         fig.add_vline(
             x=today,
             line_width=3,
             line_color="red"
         )
 
-        # ===== DOMENICHE =====
+        # ===== DOMENICHE (ottimizzato) =====
         start_range = df["Start"].min().date()
         end_range = df["End"].max().date()
 
-        current = start_range
-        while current <= end_range:
-            if current.weekday() == 6:  # domenica
-                fig.add_vrect(
-                    x0=current,
-                    x1=current + timedelta(days=1),
-                    fillcolor="lightgrey",
-                    opacity=0.3,
-                    layer="below",
-                    line_width=0,
-                )
-            current += timedelta(days=1)
+        sundays = pd.date_range(start=start_range, end=end_range, freq="W-SUN")
+
+        for d in sundays:
+            fig.add_vrect(
+                x0=d,
+                x1=d + timedelta(days=1),
+                fillcolor="lightgrey",
+                opacity=0.2,
+                layer="below",
+                line_width=0,
+            )
 
         st.plotly_chart(fig, use_container_width=True)
 
